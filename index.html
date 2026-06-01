@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MonneGuessr</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- API KEY SCREEN -->
+<div id="api-screen" class="screen active">
+  <div class="api-box">
+    <div class="logo-big">Monne<span class="accent">Guessr</span></div>
+    <p class="sub">Indtast din gratis Mapillary Access Token for at spille</p>
+    <input type="text" id="api-input" placeholder="Indsæt token her..." autocomplete="off" spellcheck="false" />
+    <button class="btn-primary" onclick="startWithKey()">Start spil</button>
+    <a href="https://www.mapillary.com/developer" target="_blank" class="link">Opret gratis Mapillary-konto og få token →</a>
+  </div>
+</div>
+
+<!-- MAIN MENU -->
+<div id="menu-screen" class="screen">
+  <div class="menu-content">
+    <div class="logo-big">Monne<span class="accent">Guessr</span></div>
+    <div class="menu-buttons">
+      <button class="btn-primary big" onclick="showScreen('lobby-screen')">Spil</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOBBY -->
+<div id="lobby-screen" class="screen">
+  <div class="lobby-box">
+    <div class="logo-small">Monne<span class="accent">Guessr</span></div>
+    <h2>Ny lobby</h2>
+    <div class="field">
+      <label>Dit navn</label>
+      <input type="text" id="player-name" value="Monne" />
+    </div>
+    <div class="field">
+      <label>Antal runder</label>
+      <select id="rounds-select">
+        <option value="3">3 runder</option>
+        <option value="5" selected>5 runder</option>
+        <option value="10">10 runder</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Tid per runde</label>
+      <select id="time-select">
+        <option value="30">30 sekunder</option>
+        <option value="60" selected>60 sekunder</option>
+        <option value="120">2 minutter</option>
+        <option value="0">Ingen tid</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Mode</label>
+      <select id="mode-select">
+        <option value="normal">Normal</option>
+        <option value="nomove">No Move</option>
+        <option value="nmpz">NMPZ (No Move, No Pan, No Zoom)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Kort</label>
+      <select id="map-select">
+        <option value="world">Verden</option>
+        <option value="europe">Europa</option>
+        <option value="denmark">Danmark</option>
+      </select>
+    </div>
+    <div class="lobby-actions">
+      <button class="btn-secondary" onclick="showScreen('menu-screen')">Tilbage</button>
+      <button class="btn-primary" onclick="startGame()">Start spil</button>
+    </div>
+  </div>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="game-screen" class="screen">
+
+  <!-- Street View iframe -->
+  <iframe id="sv-iframe" frameborder="0" allowfullscreen></iframe>
+  <div id="sv-placeholder">
+    <div class="sv-icon">🌍</div>
+    <p id="sv-status">Henter lokation...</p>
+  </div>
+
+  <!-- HUD top left: spiller 1 -->
+  <div class="hud-player hud-left">
+    <div class="flag">🇩🇰</div>
+    <div class="player-hud-info">
+      <div class="player-hud-name" id="hud-name">Monne</div>
+      <div class="health-bar"><div class="health-fill" id="health-bar" style="width:100%"></div></div>
+    </div>
+  </div>
+
+  <!-- HUD center: runde + timer -->
+  <div class="hud-center">
+    <div class="round-info">Runde <span id="cur-round">1</span> / <span id="tot-rounds">5</span></div>
+    <div class="timer" id="timer-display">60</div>
+  </div>
+
+  <!-- Bottom left: settings + respawn -->
+  <div class="hud-bottom-left">
+    <button class="ctrl-btn" onclick="toggleSettings()" title="Indstillinger">⚙</button>
+    <button class="ctrl-btn" onclick="respawn()" title="Gå tilbage til startposition">↩</button>
+  </div>
+
+  <!-- Settings panel -->
+  <div id="settings-panel">
+    <div class="settings-title">Indstillinger</div>
+    <div class="settings-row">
+      <span>Lydeffekter</span>
+      <label class="toggle">
+        <input type="checkbox" id="sound-toggle" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="settings-row">
+      <span>UI størrelse</span>
+      <select id="ui-size" onchange="setUISize(this.value)">
+        <option value="small">Lille</option>
+        <option value="normal" selected>Normal</option>
+        <option value="large">Stor</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Map corner -->
+  <div id="map-wrap">
+    <div id="game-map"></div>
+    <button id="guess-btn" disabled onclick="submitGuess()">Gæt her</button>
+  </div>
+
+  <!-- Round result overlay -->
+  <div id="result-overlay">
+    <div class="result-box">
+      <div class="result-title">Rundepoint</div>
+      <div class="result-score" id="result-score">0</div>
+      <div class="result-max">ud af 5.000</div>
+      <div class="result-dist" id="result-dist"></div>
+      <div id="result-map"></div>
+      <button class="btn-primary" onclick="nextRound()">Næste runde →</button>
+    </div>
+  </div>
+
+  <!-- Final overlay -->
+  <div id="final-overlay">
+    <div class="result-box">
+      <div class="result-title">Spil slut!</div>
+      <div class="result-score" id="final-score">0</div>
+      <div class="result-max" id="final-max">ud af 25.000</div>
+      <button class="btn-primary" onclick="showScreen('menu-screen')" style="margin-top:20px">Menu</button>
+      <button class="btn-secondary" onclick="startGame()" style="margin-top:8px">Spil igen</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="config.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
